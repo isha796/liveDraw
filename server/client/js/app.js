@@ -17,7 +17,7 @@ function pallete() {
         templateUrl: 'template/pallete.html',
         replace: true,
         link: function (scope, elem, attrs){
-            scope.changeColor = function(indx){
+            scope.changePaint = function(indx){
                 scope.color = scope.colors[indx];
                 scope.selected = indx;
             }
@@ -26,7 +26,6 @@ function pallete() {
 }
 
 function drawCtrl($scope){
-    
     var socket = io();
 
     var canvas = document.getElementById('canvas');
@@ -34,11 +33,10 @@ function drawCtrl($scope){
 
     var offsetTop = canvas.parentElement.offsetTop;
     var offsetLeft = canvas.parentElement.offsetLeft;
-    canvas.width = canvas.parentElement.offsetWidth-40;
+    canvas.width = canvas.parentElement.offsetWidth-50;
     canvas.height = window.innerHeight-offsetTop-30;
 
-    var stopCircle = true;
-    $scope.stopLine = true;
+    $scope.size = 2;
     
     var current ={};
     $scope.color = 'black';
@@ -46,28 +44,32 @@ function drawCtrl($scope){
 
        socket.on('drawing', draw);
 
-        function draw(data){
-        if(data.type == "line")
-            $scope.line.drawLine(data.x0, data.y0 , data.x1 , data.y1 , data.color);
-        else if(data.type == "circle")
-            drawCircle(data.x0, data.y0, data.color);
+    function draw(data){
+        if(data.type == 0 || data.type == 1){
+            $scope.line(data.type,data.size);
+            $scope.line.drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.size);
         }
+        else if(data.type == 2){
+            $scope.circle(data.type,data.size);
+            $scope.circle.drawCircle(data.x0, data.y0, data.color, data.size);
+        }
+    }
 
-        $scope.line = function(){
-    
+    $scope.line = function(val,size){
+
+        $scope.type = val;
+        $scope.size = size;
+
         canvas.addEventListener('mousedown', onMouseDown, false);
         canvas.addEventListener('mouseup', onMouseUp, false);
         canvas.addEventListener('mouseout', onMouseUp, false);
         canvas.addEventListener('mousemove', throttle(onMouseMove, 1), false);
-     
-        $scope.stopLine = false;
-        stopCircle = true;
             
         var drawing = false;
 
-        function drawLine(x0, y0, x1, y1,color,emit){
-
-            data = {x0 : x0, x1 : x1, y0: y0, y1: y1,color: color, type: "line"};
+        function drawLine(x0, y0, x1, y1,color,size, emit){
+            var typeVal = $scope.type;
+            data = {x0 : x0, x1 : x1, y0: y0, y1: y1,color: color,size: size, type: typeVal};
             context.beginPath();
             x0 = x0-offsetLeft;
             x1 = x1-offsetLeft;
@@ -76,12 +78,12 @@ function drawCtrl($scope){
             context.moveTo(x0, y0);
             context.lineTo(x1, y1);
             context.strokeStyle = color;
-            context.lineWidth = 2;
+            context.lineWidth = size;
             context.stroke();
             context.closePath();
 
             if(drawing)
-            socket.emit('drawing',data);
+                socket.emit('drawing',data);
         }
         $scope.line.drawLine = drawLine;
 
@@ -94,15 +96,15 @@ function drawCtrl($scope){
         function onMouseUp(e){
             if (!drawing) { return; }
             drawing = false;
-            if(!$scope.stopLine){
-                drawLine(current.x, current.y, e.clientX, e.clientY, $scope.color, true);
+            if($scope.type==1 || $scope.type==0){
+                drawLine(current.x, current.y, e.clientX, e.clientY, $scope.color, $scope.size, true);
             }
         }
 
         function onMouseMove(e){
             if (!drawing) { return; }
-            if(!$scope.stopLine){
-                drawLine(current.x, current.y, e.clientX, e.clientY, $scope.color, true);
+            if($scope.type==1 || $scope.type==0){
+                drawLine(current.x, current.y, e.clientX, e.clientY, $scope.color, $scope.size, true);
             }
             current.x = e.clientX;
             current.y = e.clientY;
@@ -122,38 +124,42 @@ function drawCtrl($scope){
         }
     }
 
-    $scope.circle = function()
+    $scope.circle = function(val,size)
     {
-        stopCircle = false;
-        stopLine = true;
-        if(stopCircle)
-            return;
+        $scope.type = val;
+        $scope.size = size;
+
         canvas.addEventListener('click', onClick,false);
         canvas.addEventListener('click', throttle(onClick, 1), false);
 
         function onClick(e)
         {
-            if(!stopCircle){
+            if($scope.type == 2){
                 current.x = e.clientX;
                 current.y = e.clientY;
-                drawCircle(current.x,current.y);
-                data ={x0 : current.x, y0:current.y, x1:0, y1:0, color:$scope.color, type:"circle"};
+                drawCircle(current.x,current.y,$scope.color,$scope.size);
+                var color = $scope.color;
+                var size = $scope.size;
+                var type = $scope.type;
+                data ={x0 : current.x, y0:current.y, x1:0, y1:0,color:color,size:size, type:type};
                 socket.emit('drawing',data);
             }
         }
 
-        function drawCircle(x,y,color)
+        function drawCircle(x,y,color,size)
         {
-            if(!stopCircle){
+            if($scope.type == 2){
                 x = x-offsetLeft;
                 y = y-offsetTop;
                 context.beginPath();
                 context.arc(x,y,30,0,Math.PI*2);
                 context.strokeStyle = color;
+                context.lineWidth = size;
                 context.stroke();
                 context.closePath();
             }
         }
+        $scope.circle.drawCircle = drawCircle;
         
 
         function throttle(callback, delay) {
@@ -168,4 +174,10 @@ function drawCtrl($scope){
             };
         }
     }
+
+    $scope.eraser = function(){
+        $scope.color = 'white';
+        $scope.selected = -1;
+        $scope.line(0,20);
+    }    
 }

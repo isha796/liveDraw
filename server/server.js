@@ -9,14 +9,8 @@ app.use(express.static(__dirname + '/client'));
 function onConnection(socket){
 	console.log('new connection: ' + socket.id);
 
-	socket.on('drawing',onDrawingEvent);
-
-	function onDrawingEvent(data){
-		socket.broadcast.emit('drawing',data);
-		//io.sockets.emit('drawing',data);
-	}
+	socket.on('drawing', (data) => socket.broadcast.emit('drawing', data));
 }
-
 io.on('connection', onConnection);
 
 http.listen(port, () => console.log('listening on port ' + port));
